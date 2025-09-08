@@ -3,11 +3,20 @@ body {
   color: #cdd6f4;
   font-family: 'Courier New', Courier, monospace;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   height: 100vh;
   margin: 0;
   padding-top: 5vh;
+}
+
+#main-title {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 4rem;
+  color: #ffffff; /* A nice pink/red from the theme */
+  margin-bottom: 20px;
+  text-shadow: 4px 4px 0px #181825; /* A little shadow for depth */
+  text-align: center;
 }
 
 #multiplayer-container {

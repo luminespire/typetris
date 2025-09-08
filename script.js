@@ -1,285 +1,461 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- DOM ELEMENTS ---
-    const wordGrid = document.getElementById('word-grid');
+    // --- GLOBAL DOM ELEMENTS & STATE ---
     const playerInput = document.getElementById('player-input');
-    const caret = document.getElementById('caret');
-    const scoreEl = document.getElementById('score');
-    const comboEl = document.getElementById('combo');
-    const gridHeightEl = document.getElementById('grid-height');
     const restartBtn = document.getElementById('restart-btn');
-
-    // --- GAME STATE ---
-    const allPossibleWords = ["the", "be", "of", "and", "a", "to", "in", "he", "have", "it", "that", "for", "they", "with", "as", "not", "on", "she", "at", "by", "this", "we", "you", "do", "but", "from", "or", "which", "one", "would", "all", "will", "there", "say", "who", "make", "when", "can", "more", "if", "no", "man", "out", "other", "so", "what", "time", "up", "go", "about", "than", "into", "could", "state", "only", "new", "year", "some", "take", "come", "these", "know", "see", "use", "get", "like", "then", "first", "any", "work", "now", "may", "such", "give", "over", "think", "most", "even", "find", "day", "also", "after", "way", "many", "must", "look", "before", "great", "back", "through", "long", "where", "much", "should", "well", "people", "down", "own", "just", "because", "good", "each", "those", "feel", "seem", "how", "high", "too", "place", "little", "world", "very", "still", "nation", "hand", "old", "life", "tell", "write", "become", "here", "show", "house", "both", "between", "need", "mean", "call", "develop", "under", "last", "right", "move", "thing", "general", "school", "never", "same", "another", "begin", "while", "number", "part", "turn", "real", "leave", "might", "want", "point", "form", "off", "child", "few", "small", "since", "against", "ask", "late", "home", "interest", "large", "person", "end", "open", "public", "follow", "during", "present", "without", "again", "hold", "govern", "around", "possible", "head", "consider", "word", "program", "problem", "however", "lead", "system", "set", "order", "eye", "plan", "run", "keep", "face", "fact", "group", "play", "stand", "increase", "early", "course", "change", "help", "line"];
-    let wordBank = [];
-    let score = 0;
-    let combo = 0;
-    let correctPrefix = ""; // Keeps track of the correctly typed words string
-    let currentRowWordIndex = 0; // Tracks the index of the current word in the top row (0-4).
     let typingTimeout; // To manage caret blinking
-    const GRID_COLS = 5;
-    const MAX_ROWS = 8; // Game over when grid height exceeds this.
 
-    // --- GAME LOGIC FUNCTIONS ---
-    // Generates a new random word
-    const getRandomWord = () => allPossibleWords[Math.floor(Math.random() * allPossibleWords.length)];
+    const allPossibleWords = ["the", "be", "of", "and", "a", "to", "in", "he", "have", "it", "that", "for", "they", "with", "as", "not", "on", "she", "at", "by", "this", "we", "you", "do", "but", "from", "or", "which", "one", "would", "all", "will", "there", "say", "who", "make", "when", "can", "more", "if", "no", "man", "out", "other", "so", "what", "time", "up", "go", "about", "than", "into", "could", "state", "only", "new", "year", "some", "take", "come", "these", "know", "see", "use", "get", "like", "then", "first", "any", "work", "now", "may", "such", "give", "over", "think", "most", "even", "find", "day", "also", "after", "way", "many", "must", "look", "before", "great", "back", "through", "long", "where", "much", "should", "well", "people", "down", "own", "just", "because", "good", "each", "those", "feel", "seem", "how", "high", "too", "place", "little", "world", "very", "still", "nation", "hand", "old", "life", "tell", "write", "become", "here", "show", "house", "both", "between", "need", "mean", "call", "develop", "under", "last", "right", "move", "thing", "general", "school", "never", "same", "another", "begin", "while", "number", "part", "turn", "real", "leave", "might", "want", "point", "form", "off", "child", "few", "small", "since", "against", "ask", "late", "home", "interest", "large", "person", "end", "open", "public", "follow", "during", "present", "without", "again", "hold", "govern", "around", "possible", "head", "consider", "word", "program", "problem", "however", "lead", "system", "set", "order", "eye", "plan", "run", "keep", "face", "fact", "group", "play", "stand", "increase", "early", "course", "change", "help", "line"];
+    class Game {
+        constructor(config) {
+            this.config = config;
+            this.elements = {
+                grid: document.getElementById(config.gridId),
+                caret: document.getElementById(config.caretId),
+                wpm: document.getElementById(config.wpmId),
+                combo: document.getElementById(config.comboId),
+                height: document.getElementById(config.heightId),
+                container: document.getElementById(config.containerId),
+            };
 
-    // Renders the entire word grid based on the current wordBank
-    const renderGrid = () => {
-        wordGrid.innerHTML = ''; // Clear existing grid
-        
-        // The wordBank is the single source of truth for the grid's structure.
-        const numTotalRows = Math.ceil(wordBank.length / GRID_COLS);
+            // Game State
+            this.wordBank = [];
+            this.opponent = null;
+            this.combo = 0;
+            this.currentRowWordIndex = 0;
+            this.correctPrefix = "";
 
-        // Check for game over (based on the settled wordBank height) before rendering
-        if (numTotalRows > MAX_ROWS) {
-            endGame();
-            return;
+            // WPM State
+            this.startTime = null;
+            this.totalCharsTyped = 0;
+            this.wpmValue = 0;
+            this.aiTimeout = null;
+            this.wpmInterval = null;
+
+            // Constants
+            this.GRID_COLS = 5;
+            this.MAX_ROWS = 8;
+            this.INITIAL_ROWS = 4;
         }
 
-        for (let i = 0; i < numTotalRows; i++) {
-            const row = document.createElement('div');
-            row.classList.add('word-row');
+        getRandomWord = () => allPossibleWords[Math.floor(Math.random() * allPossibleWords.length)];
 
-            const rowWords = wordBank.slice(i * GRID_COLS, (i + 1) * GRID_COLS);
+        renderGrid() {
+            this.elements.grid.innerHTML = '';
+            const numTotalRows = Math.ceil(this.wordBank.length / this.GRID_COLS);
 
-            rowWords.forEach((word, wordIndex) => {
-                const cell = document.createElement('span'); // Use spans for more natural text flow
-                cell.classList.add('word-cell');
-                const globalIndex = i * GRID_COLS + wordIndex;
-                
-                // The target word is always on the first row.
-                if (i === 0 && wordIndex === currentRowWordIndex) {
-                    cell.classList.add('target-word');
-                }
-                // The input handler will now manage the inner content for highlighting.
-                cell.textContent = word;
-                row.appendChild(cell);
-            });
-            wordGrid.appendChild(row);
+            if (numTotalRows > this.MAX_ROWS) {
+                this.endGame();
+                return;
+            }
+
+            for (let i = 0; i < numTotalRows; i++) {
+                const row = document.createElement('div');
+                row.classList.add('word-row');
+                const rowWords = this.wordBank.slice(i * this.GRID_COLS, (i + 1) * this.GRID_COLS);
+                rowWords.forEach((word, wordIndex) => {
+                    const cell = document.createElement('span');
+                    cell.classList.add('word-cell');
+                    if (i === 0 && wordIndex === this.currentRowWordIndex) {
+                        cell.classList.add('target-word');
+                    }
+                    cell.textContent = word;
+                    row.appendChild(cell);
+                });
+                this.elements.grid.appendChild(row);
+            }
+            this.updateStatus();
         }
 
-        // The status should reflect the "settled" grid height, not the render height
-        updateStatus();
-    };
+        updateCaretPosition() {
+            const targetCell = this.elements.grid.querySelector('.target-word');
+            if (!targetCell) {
+                this.elements.caret.style.display = 'none';
+                return;
+            }
+            this.elements.caret.style.display = 'block';
 
-    const updateCaretPosition = () => {
-        const targetCell = wordGrid.querySelector('.target-word');
-        if (!targetCell) {
-            caret.style.display = 'none';
-            return;
-        }
-        caret.style.display = 'block';
+            const typedSpan = targetCell.querySelector('.typed-chars');
+            const cellRect = targetCell.getBoundingClientRect();
+            const containerRect = this.elements.container.getBoundingClientRect();
+            const cellStyle = window.getComputedStyle(targetCell);
+            const paddingLeft = parseFloat(cellStyle.paddingLeft);
+            const leftOffset = cellRect.left - containerRect.left + paddingLeft + (typedSpan ? typedSpan.offsetWidth : 0) - 1;
+            const topOffset = cellRect.top - containerRect.top + parseFloat(cellStyle.paddingTop);
 
-        // The input handler creates a span for the typed part. We just measure it.
-        const typedSpan = targetCell.querySelector('.typed-chars');
-        const cellRect = targetCell.getBoundingClientRect();
-        const containerRect = document.getElementById('game-container').getBoundingClientRect();
-
-        const cellStyle = window.getComputedStyle(targetCell);
-        const paddingLeft = parseFloat(cellStyle.paddingLeft);
-
-        const leftOffset = cellRect.left - containerRect.left + paddingLeft + (typedSpan ? typedSpan.offsetWidth : 0) - 1;
-        const topOffset = cellRect.top - containerRect.top + parseFloat(cellStyle.paddingTop);
-
-        caret.style.left = `${leftOffset}px`;
-        caret.style.top = `${topOffset}px`;
-        caret.style.height = `${parseFloat(cellStyle.fontSize)}px`;
-    };
-
-    // Updates the score, combo, and grid height display
-    const updateStatus = () => {
-        scoreEl.textContent = score;
-        comboEl.textContent = combo;
-        gridHeightEl.textContent = Math.ceil(wordBank.length / GRID_COLS);
-    };
-
-    const handleRowCompletion = () => {
-        // --- NON-BLOCKING ANIMATION (FLIP) ---
-        // 1. FIRST: Get the starting positions of all rows and clone the first row.
-        const startingPositions = new Map();
-        const oldRows = Array.from(wordGrid.children);
-        oldRows.forEach((row, index) => {
-            startingPositions.set(index, row.getBoundingClientRect());
-        });
-        const firstRowClone = oldRows[0] ? oldRows[0].cloneNode(true) : null;
-
-        // 2. LAST: Update game logic and render the final state INSTANTLY.
-        // This is the non-blocking part. The user can start typing immediately.
-        wordBank.splice(0, GRID_COLS); // Remove the first row of words
-        for (let i = 0; i < GRID_COLS; i++) {
-            wordBank.push(getRandomWord()); // Add a new row of words to the end
-        }
-        currentRowWordIndex = 0;
-        correctPrefix = "";
-        playerInput.value = "";
-        renderGrid();
-        updateCaretPosition();
-        playerInput.focus();
-
-        // 3. INVERT & PLAY: Animate the transition in the background.
-        // Animate the cloned first row disappearing.
-        if (firstRowClone) {
-            const firstRowStartPos = startingPositions.get(0);
-            const containerRect = document.getElementById('game-container').getBoundingClientRect();
-            Object.assign(firstRowClone.style, {
-                position: 'absolute',
-                left: `${firstRowStartPos.left - containerRect.left}px`,
-                top: `${firstRowStartPos.top - containerRect.top}px`,
-                width: `${firstRowStartPos.width}px`,
-                margin: '0',
-                opacity: '1',
-                transition: 'transform 0.3s ease-out, opacity 0.3s ease-out'
-            });
-            wordGrid.parentNode.insertBefore(firstRowClone, wordGrid);
-            // Animate it out in the next frame
-            requestAnimationFrame(() => {
-                firstRowClone.style.transform = 'translateY(-100%)';
-                firstRowClone.style.opacity = '0';
-            });
-            // Clean it up after the animation
-            setTimeout(() => firstRowClone.remove(), 300);
+            this.elements.caret.style.left = `${leftOffset}px`;
+            this.elements.caret.style.top = `${topOffset}px`;
+            this.elements.caret.style.height = `${parseFloat(cellStyle.fontSize)}px`;
         }
 
-        // Animate the remaining rows moving up.
-        const newRows = Array.from(wordGrid.children);
-        newRows.forEach((row, index) => {
-            const startPos = startingPositions.get(index + 1); // New row `i` corresponds to old row `i+1`
-            if (!startPos) return; // This is a new row at the bottom, no animation needed.
-            const newPos = row.getBoundingClientRect();
-            const deltaY = startPos.top - newPos.top;
-
-            if (Math.abs(deltaY) < 1) return; // Don't animate if it didn't move.
-
-            // INVERT: Move the element to its old position instantly.
-            row.style.transition = 'transform 0s';
-            row.style.transform = `translateY(${deltaY}px)`;
-
-            // PLAY: In the next frame, add the transition and animate to the new position.
-            requestAnimationFrame(() => {
-                row.style.transition = 'transform 0.3s ease-out';
-                row.style.transform = ''; // Animate to default (new) position.
-            });
-
-            // Clean up styles after the animation.
-            row.addEventListener('transitionend', () => {
-                row.style.transition = '';
-            }, { once: true });
-        });
-    };
-
-    const handleMistake = () => {
-        combo = 0;
-        score -= 5;
-        for (let i = 0; i < GRID_COLS; i++) {
-            wordBank.push(getRandomWord());
-        }
-        // On mistake, perform an immediate, hard reset of the visuals.
-        currentRowWordIndex = 0;
-        correctPrefix = "";
-        playerInput.value = "";
-        renderGrid();
-        updateCaretPosition();
-    };
-
-    const endGame = () => {
-        playerInput.disabled = true;
-        correctPrefix = "";
-        playerInput.value = "GAME OVER - CAPPED OUT!";
-        currentRowWordIndex = 0;
-        caret.style.display = 'none';
-        restartBtn.classList.remove('hidden');
-    };
-
-    // --- EVENT LISTENERS ---
-    playerInput.addEventListener('input', () => {
-        // Make the caret solid while typing, and resume blinking on pause.
-        clearTimeout(typingTimeout);
-        caret.classList.add('typing');
-        typingTimeout = setTimeout(() => {
-            caret.classList.remove('typing');
-        }, 500); // 500ms delay before resuming blink
-
-        const typedValue = playerInput.value;
-        const targetWord = wordBank[currentRowWordIndex];
-        if (!targetWord) return; // Game is over or not ready
-
-        // Handle backspace into the already-correct part of the input
-        if (!typedValue.startsWith(correctPrefix)) {
-            handleMistake();
-            playerInput.value = ""; // Hard reset on this kind of error
-            correctPrefix = "";
-            return;
+        updateStatus() {
+            this.elements.combo.textContent = this.combo;
+            this.elements.height.textContent = Math.ceil(this.wordBank.length / this.GRID_COLS);
         }
 
-        // The part of the input the user is currently typing for the current word.
-        const activeTyping = typedValue.substring(correctPrefix.length);
+        updateWPM() {
+            if (!this.startTime) return;
+            const timeElapsedMinutes = (Date.now() - this.startTime) / 60000;
+            if (timeElapsedMinutes === 0) return;
 
-        // Success condition: the active part matches the target word plus a space
-        if (activeTyping === targetWord + ' ') {
-            correctPrefix = typedValue; // Lock in the new correct prefix
-            score += targetWord.length;
-            combo++;
-            updateStatus();
+            const wpm = Math.round((this.totalCharsTyped / 5) / timeElapsedMinutes);
+            this.elements.wpm.textContent = wpm;
+            this.wpmValue = wpm;
+        }
 
-            const allCells = wordGrid.querySelectorAll('.word-cell');
-            const oldTargetCell = allCells[currentRowWordIndex];
+        aiCompleteWord() {
+            const MISTAKE_CHANCE = 0.05; // 5% chance per word
+            const ATTACK_CHANCE = 0.1;  // 10% chance per word
+
+            if (Math.random() < MISTAKE_CHANCE) {
+                this.handleMistake();
+                return; // Stop this turn's logic
+            }
+
+            if (Math.random() < ATTACK_CHANCE) {
+                this.handleAttack();
+                // Don't return, still complete the word
+            }
+
+            const targetWord = this.wordBank[this.currentRowWordIndex];
+            if (!targetWord) return;
+
+            // --- Simulate successful word completion ---
+            this.totalCharsTyped += targetWord.length + 1;
+            this.combo++;
+            this.updateStatus();
+
+            // Update visuals
+            const allCells = this.elements.grid.querySelectorAll('.word-cell');
+            const oldTargetCell = allCells[this.currentRowWordIndex];
             if (oldTargetCell) {
                 oldTargetCell.classList.remove('target-word');
-                // Visually "lock in" the completed word
                 oldTargetCell.innerHTML = `<span class="typed-chars">${targetWord}</span>`;
             }
 
-            currentRowWordIndex++;
+            this.currentRowWordIndex++;
 
-            if (currentRowWordIndex >= GRID_COLS) {
-                handleRowCompletion();
+            if (this.currentRowWordIndex >= this.GRID_COLS) {
+                this.handleRowCompletion();
             } else {
-                // Move to the next word in the same row
-                const nextTargetCell = allCells[currentRowWordIndex];
+                const nextTargetCell = allCells[this.currentRowWordIndex];
                 if (nextTargetCell) {
                     nextTargetCell.classList.add('target-word');
                 }
-                updateCaretPosition();
+                this.updateCaretPosition();
+            }
+        }
+
+        startAI() {
+            if (this.config.isPlayer) return;
+
+            const scheduleNextWord = () => {
+                const targetWord = this.wordBank[this.currentRowWordIndex];
+                if (!targetWord) { this.stopAI(); return; }
+
+                const playerWPM = this.opponent.wpmValue || 20;
+                const aiWPM = playerWPM + 10;
+                const timePerCharMs = 60000 / (aiWPM * 5);
+                const delay = timePerCharMs * targetWord.length;
+
+                this.aiTimeout = setTimeout(() => {
+                    this.aiCompleteWord();
+                    scheduleNextWord();
+                }, delay);
+            };
+
+            this.startTime = Date.now();
+            this.wpmInterval = setInterval(() => this.updateWPM(), 1000);
+            scheduleNextWord();
+        }
+
+        stopAI() {
+            clearTimeout(this.aiTimeout);
+            clearInterval(this.wpmInterval);
+        }
+
+        addPenaltyLines(count) {
+            if (count === 0) return;
+            const newWords = [];
+            for (let i = 0; i < count; i++) {
+                newWords.push(this.getRandomWord());
+            }
+            // Add new words to the end of the grid so the player isn't interrupted.
+            this.wordBank.push(...newWords);
+            this.renderGrid();
+            this.updateCaretPosition();
+
+            // --- Performance Improvement: Additively render new rows ---
+            // Instead of a full re-render which causes a hitch, we just append the new rows.
+            const fragment = document.createDocumentFragment();
+            const newRows = [];
+            for (let i = 0; i < count; i += this.GRID_COLS) {
+                const row = document.createElement('div');
+                row.classList.add('word-row');
+                const rowWords = this.wordBank.slice(this.wordBank.length - count + i, this.wordBank.length - count + i + this.GRID_COLS);
+                rowWords.forEach(word => {
+                    const cell = document.createElement('span');
+                    cell.classList.add('word-cell');
+                    cell.textContent = word;
+                    row.appendChild(cell);
+                });
+                fragment.appendChild(row);
+                newRows.push(row);
+            }
+            this.elements.grid.appendChild(fragment);
+
+            // Check for game over *after* updating the grid height display
+            this.updateStatus();
+            if (Math.ceil(this.wordBank.length / this.GRID_COLS) > this.MAX_ROWS) {
+                this.endGame();
+            }
+        }
+
+        handleAttack() {
+            if (this.combo > 0 && this.opponent) {
+                this.opponent.addPenaltyLines(this.combo);
+            }
+            this.combo = 0;
+            this.updateStatus();
+        }
+
+        handleRowCompletion() {
+            const startingPositions = new Map();
+            const oldRows = Array.from(this.elements.grid.children);
+            oldRows.forEach((row, index) => {
+                startingPositions.set(index, row.getBoundingClientRect());
+            });
+            const firstRowClone = oldRows[0] ? oldRows[0].cloneNode(true) : null;
+
+            const initialWordCount = this.INITIAL_ROWS * this.GRID_COLS;
+            const isClearingPenalty = this.wordBank.length > initialWordCount;
+
+            // Always remove the completed row
+            this.wordBank.splice(0, this.GRID_COLS);
+
+            if (!isClearingPenalty) {
+                // Only add a new row if not clearing penalty lines
+                for (let i = 0; i < this.GRID_COLS; i++) {
+                    this.wordBank.push(this.getRandomWord());
+                }
+            }
+            this.currentRowWordIndex = 0;
+
+            if (this.config.isPlayer) {
+                this.correctPrefix = "";
+                playerInput.value = "";
+            }
+
+            this.renderGrid();
+            this.updateCaretPosition();
+
+            if (this.config.isPlayer) {
+                playerInput.focus();
+            }
+
+            if (firstRowClone) {
+                const firstRowStartPos = startingPositions.get(0);
+                const containerRect = this.elements.container.getBoundingClientRect();
+                Object.assign(firstRowClone.style, {
+                    position: 'absolute',
+                    left: `${firstRowStartPos.left - containerRect.left}px`,
+                    top: `${firstRowStartPos.top - containerRect.top}px`,
+                    width: `${firstRowStartPos.width}px`,
+                    margin: '0',
+                    opacity: '1',
+                    transition: 'transform 0.3s ease-out, opacity 0.3s ease-out'
+                });
+                this.elements.grid.parentNode.insertBefore(firstRowClone, this.elements.grid);
+                requestAnimationFrame(() => {
+                    firstRowClone.style.transform = 'translateY(-100%)';
+                    firstRowClone.style.opacity = '0';
+                });
+                setTimeout(() => firstRowClone.remove(), 300);
+            }
+
+            const newRows = Array.from(this.elements.grid.children);
+            newRows.forEach((row, index) => {
+                const startPos = startingPositions.get(index + 1);
+                if (!startPos) return;
+                const newPos = row.getBoundingClientRect();
+                const deltaY = startPos.top - newPos.top;
+                if (Math.abs(deltaY) < 1) return;
+                row.style.transition = 'transform 0s';
+                row.style.transform = `translateY(${deltaY}px)`;
+                requestAnimationFrame(() => {
+                    row.style.transition = 'transform 0.3s ease-out';
+                    row.style.transform = '';
+                });
+                row.addEventListener('transitionend', () => {
+                    row.style.transition = '';
+                }, { once: true });
+            });
+        }
+
+        resetCurrentWordInput() {
+            const targetCell = this.elements.grid.querySelector('.target-word');
+            if (targetCell) {
+                const targetWord = this.wordBank[this.currentRowWordIndex];
+                targetCell.innerHTML = targetWord; // Reset highlighting
+            }
+            if (this.config.isPlayer) {
+                playerInput.value = this.correctPrefix;
+            }
+            this.updateCaretPosition();
+        }
+
+        handleMistake() {
+            this.handleAttack(); // A mistake sends the current combo and resets it.
+            this.updateStatus();
+            this.resetCurrentWordInput();
+        }
+
+        endGame() {
+            this.currentRowWordIndex = 0;
+            this.elements.caret.style.display = 'none';
+            if (!this.config.isPlayer) {
+                this.stopAI();
+            }
+            if (this.config.isPlayer) {
+                // Player lost
+                playerInput.disabled = true;
+                playerInput.value = "GAME OVER - CAPPED OUT!";
+                restartBtn.classList.remove('hidden');
+            } else {
+                // Opponent lost, so player wins
+                playerInput.disabled = true;
+                playerInput.value = "YOU WIN!";
+                restartBtn.classList.remove('hidden');
+            }
+        }
+
+        startGame() {
+            this.wordBank = Array.from({ length: this.INITIAL_ROWS * this.GRID_COLS }, this.getRandomWord);
+            this.currentRowWordIndex = 0;
+            this.combo = 0;
+
+            // Reset WPM state
+            this.startTime = null;
+            this.totalCharsTyped = 0;
+            this.wpmValue = 0;
+            clearInterval(this.wpmInterval);
+            clearTimeout(this.aiTimeout);
+            this.elements.wpm.textContent = 0;
+
+            if (this.config.isPlayer) {
+                this.correctPrefix = "";
+                playerInput.disabled = false;
+                playerInput.value = '';
+                restartBtn.classList.add('hidden');
+                playerInput.focus();
+            } else {
+                // Start the AI loop for the opponent
+                this.startAI();
+            }
+            this.renderGrid();
+            this.updateCaretPosition();
+        }
+    }
+
+    // --- GAME INSTANCES ---
+    const playerGame = new Game({
+        containerId: 'player-game',
+        gridId: 'player-word-grid',
+        caretId: 'player-caret',
+        wpmId: 'player-wpm',
+        comboId: 'player-combo',
+        heightId: 'player-grid-height',
+        isPlayer: true
+    });
+
+    const opponentGame = new Game({
+        containerId: 'opponent-game',
+        gridId: 'opponent-word-grid',
+        caretId: 'opponent-caret',
+        wpmId: 'opponent-wpm',
+        comboId: 'opponent-combo',
+        heightId: 'opponent-grid-height',
+        isPlayer: false
+    });
+
+    // Link the two game instances
+    playerGame.opponent = opponentGame;
+    opponentGame.opponent = playerGame;
+
+    // --- EVENT LISTENERS ---
+    playerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault(); // Prevent form submission
+            playerGame.handleAttack();
+            playerGame.resetCurrentWordInput();
+        }
+    });
+
+    playerInput.addEventListener('input', () => {
+        clearTimeout(typingTimeout);
+        playerGame.elements.caret.classList.add('typing');
+        typingTimeout = setTimeout(() => { playerGame.elements.caret.classList.remove('typing'); }, 500);
+
+        // Start WPM timer on first input of the game
+        if (playerGame.startTime === null) {
+            playerGame.startTime = Date.now();
+            playerGame.wpmInterval = setInterval(() => playerGame.updateWPM(), 1000);
+        }
+
+        const typedValue = playerInput.value;
+        const targetWord = playerGame.wordBank[playerGame.currentRowWordIndex];
+        if (!targetWord) return;
+
+        if (!typedValue.startsWith(playerGame.correctPrefix)) {
+            playerGame.handleMistake();
+            return;
+        }
+
+        const activeTyping = typedValue.substring(playerGame.correctPrefix.length);
+
+        if (activeTyping === targetWord + ' ') {
+            playerGame.correctPrefix = typedValue;
+            playerGame.totalCharsTyped += targetWord.length + 1; // +1 for the space
+            playerGame.combo++;
+            playerGame.updateStatus();
+
+            const allCells = playerGame.elements.grid.querySelectorAll('.word-cell');
+            const oldTargetCell = allCells[playerGame.currentRowWordIndex];
+            if (oldTargetCell) {
+                oldTargetCell.classList.remove('target-word');
+                oldTargetCell.innerHTML = `<span class="typed-chars">${targetWord}</span>`;
+            }
+
+            playerGame.currentRowWordIndex++;
+
+            if (playerGame.currentRowWordIndex >= playerGame.GRID_COLS) {
+                playerGame.handleRowCompletion();
+            } else {
+                const nextTargetCell = allCells[playerGame.currentRowWordIndex];
+                if (nextTargetCell) {
+                    nextTargetCell.classList.add('target-word');
+                }
+                playerGame.updateCaretPosition();
             }
             return;
         }
 
-        // Mistake condition: the active part is not a prefix of the target word
         if (!targetWord.startsWith(activeTyping)) {
-            handleMistake();
-            // Reset the user's input to the last known good state
-            playerInput.value = correctPrefix;
+            playerGame.handleMistake();
+            // handleMistake now resets the input for us
         } else {
-            // Correct typing in progress.
-            // NO re-render. Just update the target cell's HTML and move the caret.
-            // This is much more performant.
-            const targetCell = wordGrid.querySelector('.target-word');
+            const targetCell = playerGame.elements.grid.querySelector('.target-word');
             if (targetCell) {
                 targetCell.innerHTML = `<span class="typed-chars">${activeTyping}</span>${targetWord.substring(activeTyping.length)}`;
             }
-            updateCaretPosition();
+            playerGame.updateCaretPosition();
         }
     });
 
-    // Add a listener for the restart button to reload the page
     restartBtn.addEventListener('click', () => {
         location.reload();
     });
 
-    // --- INITIALIZE GAME ---
-    const startGame = () => {
-        wordBank = Array.from({ length: 4 * GRID_COLS }, getRandomWord); // Start with 4 rows
-        score = 0;
-        currentRowWordIndex = 0;
-        combo = 0;
-        correctPrefix = "";
-        playerInput.disabled = false;
-        playerInput.value = '';
-        restartBtn.classList.add('hidden');
-        renderGrid();
-        updateCaretPosition();
-        playerInput.focus();
-    };
-
-    startGame();
+    // --- INITIALIZE GAMES ---
+    playerGame.startGame();
+    opponentGame.startGame();
 });

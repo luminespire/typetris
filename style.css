@@ -19,32 +19,30 @@ body {
   border-radius: 8px;
 }
 
-#cap-out-line {
-  position: absolute;
-  top: 25%;
-  left: 10px;
-  right: 10px;
-  border-top: 2px dashed #f38ba8;
+#word-grid {
+  margin-bottom: 20px;
 }
 
-#word-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-  /* This is the key to smooth scrolling! */
-  transition: transform 0.2s ease-in-out; 
+.word-row {
+  display: flex;
+  /* Words should not wrap within a single row */
+  white-space: nowrap; 
+  padding: 0.5em 0;
+  border-bottom: 1px solid #45475a;
+}
+
+.word-row:first-child {
+  border-top: 1px solid #45475a;
 }
 
 .word-cell {
-  background-color: #45475a;
-  padding: 15px;
-  text-align: center;
-  border-radius: 4px;
-  font-size: 1.2em;
-  white-space: nowrap;
+  /* Use clamp() to create a responsive font size that has a minimum, a scaling preferred size, and a maximum */
+  /* clamp(MIN, PREFERRED, MAX) */
+  font-size: clamp(0.75rem, 2.5vw, 1.2rem);
   overflow: hidden;
   text-overflow: ellipsis;
+  padding: 0 0.5em; /* Horizontal padding for spacing */
+  flex-shrink: 0; /* Prevent words from shrinking as the row fills up */
 }
 
 .target-word {
@@ -52,11 +50,6 @@ body {
   text-decoration-color: #a6e3a1;
   font-weight: bold;
   color: #a6e3a1;
-}
-
-/* Class to highlight the correctly typed part of the target word */
-.typed-prefix {
-  color: #f9e2af; /* Yellow for typed prefix */
 }
 
 #status-bar {
@@ -82,10 +75,4 @@ body {
 
 #player-input:focus {
   outline: 2px solid #89b4fa;
-}
-
-/* This class will be added temporarily to trigger the scroll animation */
-.scrolling {
-  /* Translate the grid left by the width of one column plus the gap */
-  transform: translateX(calc(-20% - 10px));
 }

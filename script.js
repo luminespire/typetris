@@ -71,63 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const handleSuccess = () => {
-        // --- FLIP ANIMATION ---
-        // 1. FIRST: Get the starting positions of all words.
-        const startingPositions = new Map();
-        const cells = Array.from(wordGrid.querySelectorAll('.word-cell'));
-        cells.forEach((cell, index) => {
-            startingPositions.set(index, cell.getBoundingClientRect());
-        });
-
-        // 2. LAST: Update game logic and render the final state.
+        // --- 1. IMMEDIATE LOGIC UPDATE ---
         score += wordBank[0].length;
         combo++;
         wordBank.shift(); // The completed word is removed
         wordBank.push(getRandomWord()); // A new word is added to the end to "appear"
+
+        // --- 2. IMMEDIATE VISUAL UPDATE ---
+        // A full re-render resets the grid to a clean state for the next word.
+        // This results in an instant "jump" of the words, which feels very responsive.
         renderGrid();
-
-        // 3. INVERT & PLAY: Animate the words from their old positions to the new ones.
-        const newCells = Array.from(wordGrid.querySelectorAll('.word-cell'));
-        newCells.forEach((cell, index) => {
-            // The new cell at index `i` corresponds to the old cell at `i+1`.
-            const startPos = startingPositions.get(index + 1);
-
-            if (startPos) { // This word moved.
-                const newPos = cell.getBoundingClientRect();
-                const deltaX = startPos.left - newPos.left;
-                const deltaY = startPos.top - newPos.top;
-
-                // If the word jumped rows (significant deltaY), don't animate it.
-                // Let it appear instantly in its new position.
-                // Only animate words that scroll left on the FIRST row.
-                if (index < GRID_COLS && Math.abs(deltaY) < 1 && Math.abs(deltaX) > 1) {
-                    // INVERT: Move the element to its old horizontal position instantly.
-                    cell.style.transform = `translateX(${deltaX}px)`;
-                    cell.style.transition = 'transform 0s';
-
-                    // PLAY: In the next frame, add the transition and animate to the new position.
-                    requestAnimationFrame(() => {
-                        cell.style.transition = 'transform 0.3s ease-in-out';
-                        cell.style.transform = ''; // Animate to default (new) position.
-                    });
-
-                    // Clean up styles after the animation.
-                    cell.addEventListener('transitionend', () => {
-                        cell.style.transition = '';
-                    }, { once: true });
-                }
-            } else { // This is a new word appearing at the end.
-                cell.style.opacity = '0';
-                requestAnimationFrame(() => {
-                    cell.style.transition = 'opacity 0.3s ease-in-out';
-                    cell.style.opacity = '1';
-                    cell.addEventListener('transitionend', () => {
-                        cell.style.transition = '';
-                        cell.style.opacity = '';
-                    }, { once: true });
-                });
-            }
-        });
     };
 
     const handleMistake = () => {
@@ -176,18 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset the user's input to the last known good state
             playerInput.value = correctPrefix;
         } else {
-            // Correct typing in progress: Update cells directly to avoid a full re-render,
-            // which would break the smooth scroll animation. This is more performant.
-            const targetCell = wordGrid.querySelector('.target-word');
-            const lastCell = wordGrid.querySelector('.word-cell:last-child');
-            const lastWord = wordBank[wordBank.length - 1];
-
-            if (targetCell) {
-                targetCell.textContent = targetWord.substring(activeTyping.length);
-            }
-            if (lastCell && lastWord) {
-                lastCell.textContent = lastWord.substring(0, activeTyping.length);
-            }
+            // Correct typing in progress: re-render the grid with char-by-char effects.
+            // This provides the "letter by letter" feel on every keystroke.
+            renderGrid(activeTyping);
         }
     });
 

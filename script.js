@@ -150,7 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const scheduleNextWord = () => {
                 const targetWord = this.wordBank[this.currentRowWordIndex];
-                if (!targetWord) { this.stopAI(); return; }
+                if (!targetWord) { this.stopTimers(); return; }
 
                 const playerWPM = this.opponent.wpmValue || 20;
                 const aiWPM = playerWPM + 10;
@@ -168,9 +168,10 @@ document.addEventListener('DOMContentLoaded', () => {
             scheduleNextWord();
         }
 
-        stopAI() {
+        stopTimers() {
             clearTimeout(this.aiTimeout);
             clearInterval(this.wpmInterval);
+            this.elements.caret.style.display = 'none';
         }
 
         addPenaltyLines(count) {
@@ -181,8 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             // Add new words to the end of the grid so the player isn't interrupted.
             this.wordBank.push(...newWords);
-            this.renderGrid();
-            this.updateCaretPosition();
 
             // --- Performance Improvement: Additively render new rows ---
             // Instead of a full re-render which causes a hitch, we just append the new rows.
@@ -274,31 +273,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const newRows = Array.from(this.elements.grid.children);
             newRows.forEach((row, index) => {
-                const startPos = startingPositions.get(index + 1);
-                if (!startPos) return;
-                const newPos = row.getBoundingClientRect();
-                const deltaY = startPos.top - newPos.top;
-                if (Math.abs(deltaY) < 1) return;
-                row.style.transition = 'transform 0s';
-                row.style.transform = `translateY(${deltaY}px)`;
-                requestAnimationFrame(() => {
-                    row.style.transition = 'transform 0.3s ease-out';
-                    row.style.transform = '';
-                });
-                row.addEventListener('transitionend', () => {
-                    row.style.transition = '';
-                }, { once: true });
+                // Only animate the row that is moving into the top position to reduce distraction.
+                if (index === 0) {
+                    const startPos = startingPositions.get(index + 1); // New row `i` corresponds to old row `i+1`
+                    if (!startPos) return;
+                    const newPos = row.getBoundingClientRect();
+                    const deltaY = startPos.top - newPos.top;
+                    if (Math.abs(deltaY) < 1) return; // Don't animate if it didn't move.
+
+                    row.style.transition = 'transform 0s';
+                    row.style.transform = `translateY(${deltaY}px)`;
+                    requestAnimationFrame(() => {
+                        row.style.transition = 'transform 0.3s ease-out';
+                        row.style.transform = ''; // Animate to default (new) position.
+                    });
+                    row.addEventListener('transitionend', () => { row.style.transition = ''; }, { once: true });
+                }
             });
         }
 
         resetCurrentWordInput() {
+            if (this.config.isPlayer) {
+                playerInput.value = this.correctPrefix;
+            }
             const targetCell = this.elements.grid.querySelector('.target-word');
             if (targetCell) {
                 const targetWord = this.wordBank[this.currentRowWordIndex];
                 targetCell.innerHTML = targetWord; // Reset highlighting
-            }
-            if (this.config.isPlayer) {
-                playerInput.value = this.correctPrefix;
             }
             this.updateCaretPosition();
         }
@@ -310,22 +311,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         endGame() {
-            this.currentRowWordIndex = 0;
-            this.elements.caret.style.display = 'none';
-            if (!this.config.isPlayer) {
-                this.stopAI();
-            }
+            // Stop all timers for both games to prevent background activity.
+            playerGame.stopTimers();
+            opponentGame.stopTimers();
+
+            // Disable player input regardless of who lost.
+            playerInput.disabled = true;
+
             if (this.config.isPlayer) {
                 // Player lost
-                playerInput.disabled = true;
                 playerInput.value = "GAME OVER - CAPPED OUT!";
-                restartBtn.classList.remove('hidden');
             } else {
                 // Opponent lost, so player wins
-                playerInput.disabled = true;
                 playerInput.value = "YOU WIN!";
-                restartBtn.classList.remove('hidden');
             }
+            // Show the retry button.
+            restartBtn.classList.remove('hidden');
         }
 
         startGame() {

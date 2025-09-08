@@ -4,9 +4,10 @@ body {
   font-family: 'Courier New', Courier, monospace;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   height: 100vh;
   margin: 0;
+  padding-top: 5vh;
 }
 
 #multiplayer-container {

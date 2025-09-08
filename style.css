@@ -19,6 +19,27 @@ body {
   border-radius: 8px;
 }
 
+#caret {
+  position: absolute;
+  width: 2px;
+  background-color: #f9e2af; /* Yellow caret */
+  border-radius: 1px;
+  transition: top 0.08s ease-out, left 0.08s ease-out;
+  animation: blink 1s infinite;
+  display: none; /* Hidden by default */
+}
+
+/* When the user is typing, stop the animation to prevent the caret from disappearing */
+#caret.typing {
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 #word-grid {
   margin-bottom: 20px;
 }
@@ -29,10 +50,13 @@ body {
   white-space: nowrap; 
   padding: 0.5em 0;
   border-bottom: 1px solid #45475a;
+  opacity: 0.6;
+  transition: opacity 0.3s ease-in-out;
 }
 
 .word-row:first-child {
   border-top: 1px solid #45475a;
+  opacity: 1; /* Ensure the first row is fully visible */
 }
 
 .word-cell {
@@ -50,6 +74,11 @@ body {
   text-decoration-color: #a6e3a1;
   font-weight: bold;
   color: #a6e3a1;
+}
+
+/* Style for the correctly typed characters */
+.typed-chars {
+  color: #6c7086; /* Dim the typed characters */
 }
 
 #status-bar {
